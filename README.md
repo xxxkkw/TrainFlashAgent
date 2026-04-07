@@ -130,21 +130,13 @@ python -m trainflashagent_mcp.server
 
 ```
 TrainFlashAgent/
-├── src/trainflashagent/
-│   ├── sandbox.py          # 沙盒隔离与版本管理
-│   ├── diagnostics.py      # 自顶向下诊断工具
-│   ├── interventions.py    # 工程级优化干预
-│   ├── verification.py     # 性能与保真度验证
-│   ├── governance.py       # 审计日志与晋级门控
-│   └── manager.py          # 统一编排器
-├── src/trainflashagent_mcp/
-│   └── server.py           # MCP Server 实现
-├── tests/                  # 单元测试
-├── docs/superpowers/
-│   ├── specs/              # 设计规格
-│   └── plans/              # 实施计划
-├── CLAUDE.md               # AI 开发指南
-└── README.md
+└── src/trainflashagent/
+    ├── sandbox.py          # 沙盒隔离与版本管理
+    ├── diagnostics.py      # 自顶向下诊断工具
+    ├── interventions.py    # 工程级优化干预
+    ├── verification.py     # 性能与保真度验证
+    ├── governance.py       # 审计日志与晋级门控
+    └── manager.py          # 统一编排器
 ```
 
 ---
@@ -155,18 +147,6 @@ TrainFlashAgent/
 - ✅ 希望自动化调优流程，减少手动试错
 - ✅ 需要确保优化不影响模型精度
 - ✅ 使用 Cursor/Claude Desktop 等 AI 编辑器
-
----
-
-## 📝 设计文档
-
-详见 [`docs/superpowers/specs/2026-04-06-trainflashagent-design.md`](docs/superpowers/specs/2026-04-06-trainflashagent-design.md)
-
----
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
 
 ---
 
