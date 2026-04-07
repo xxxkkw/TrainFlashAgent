@@ -140,33 +140,14 @@ AI:
 
 ## 📋 验收标准
 
-每次优化必须满足：
+每次优化后需要确认：
 
-- ✅ 吞吐量提升 > 5%
-- ✅ Loss 误差 < 0.001
+- ✅ 吞吐量有提升（具体幅度视场景而定）
+- ✅ Loss 误差 < 0.001（确保模型精度不受影响）
 - ✅ 用户确认后才能回写
-
----
-
-## 🤝 贡献
-
-欢迎提交新的 Skills 或改进现有内容！
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/awesome`)
-3. 提交变更 (`git commit -m 'Add awesome skill'`)
-4. 推送到分支 (`git push origin feature/awesome`)
-5. 创建 Pull Request
 
 ---
 
 ## 📄 License
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
----
-
-## 🙏 致谢
-
-- 灵感来自 [airbnb/airbnb-cursor-rules](https://github.com/airbnb/airbnb-cursor-rules)
-- 适用于 Cursor、GitHub Copilot、Claude Code 等主流 AI 编程工具
+MIT License
