@@ -1,190 +1,150 @@
-# TrainFlashAgent ⚡
+# TrainFlashAgent
 
-**一套让 AI 像顶级性能工程师一样优化深度学习训练的 Skills。**
+<div align="center">
 
-这不是一个 Python 库，也不是一个 MCP Server。这是一套 **Markdown 规范**，可以被任何 AI 编辑器（Cursor、GitHub Copilot、Claude Code）直接使用。
+**让 AI 像资深性能工程师一样优化深度学习训练**
 
----
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Cursor](https://img.shields.io/badge/Cursor-支持-brightgreen)](https://cursor.sh)
+[![Copilot](https://img.shields.io/badge/Copilot-支持-blue)](https://github.com/features/copilot)
 
-## 🚀 为什么是 Markdown Skills？
-
-| 传统方案 | TrainFlashAgent |
-|---------|-----------------|
-| 需要安装 Python 库 | **零依赖，复制即用** |
-| 需要配置 MCP Server | **任何 AI 编辑器都支持** |
-| 预设流程限制 | **LLM 自主决策** |
-| 特定平台绑定 | **跨平台、可传播** |
-
-**这就是为什么像 [airbnb/airbnb-cursor-rules](https://github.com/airbnb/airbnb-cursor-rules) 这样的项目能获得 5k+ Star。**
+</div>
 
 ---
 
-## 📁 项目结构
+## 📖 简介
+
+TrainFlashAgent 是一套**基于 Markdown 的性能优化方法论**，专为深度学习训练场景设计。
+
+它不是一个需要安装的库，而是一套可以被任何 AI 编辑器（Cursor、GitHub Copilot、Claude Code）直接读取和执行的规范。
+
+**核心思想**：通过自顶向下的诊断流程，让 AI 自动识别训练瓶颈并优化，同时确保模型精度不受影响。
+
+---
+
+## ⚡ 快速开始
+
+### 1️⃣ 复制配置文件
+
+```bash
+# Cursor 用户
+cp .cursorrules /path/to/your/project/
+
+# GitHub Copilot 用户
+mkdir -p .github && cp .github/copilot-instructions.md .github/
+```
+
+### 2️⃣ 对 AI 说
+
+> "帮我优化这个项目的训练速度"
+
+就这么简单。AI 会自动按照 Skills 流程执行：创建沙盒 → 诊断瓶颈 → 应用优化 → 验证效果。
+
+---
+
+## 🔥 核心特性
+
+| 特性 | 说明 |
+|------|------|
+| **🔒 零风险** | 所有实验在沙盒中进行，原项目不受影响 |
+| **📊 自顶向下** | 先宏观诊断，再工程优化，最后才考虑算子级调优 |
+| **🤖 AI 原生** | 专为 LLM 设计，AI 自主决策优化策略 |
+| **🔧 零依赖** | 纯 Markdown 文档，无需安装任何库 |
+| **📱 跨平台** | Cursor / Copilot / Claude Code 通用 |
+
+---
+
+## 🎯 解决的问题
+
+深度学习训练优化常见的痛点：
+
+| 问题 | TrainFlashAgent 方案 |
+|------|---------------------|
+| 不知道瓶颈在哪 | 手动计时器快速定位（DataLoad/Forward/Backward） |
+| 盲目调参效果差 | 基于诊断数据的针对性优化 |
+| 担心影响模型精度 | 严格的保真度验证（Loss 误差 < 0.001） |
+| 不敢修改代码 | 沙盒隔离 + 用户确认机制 |
+
+---
+
+## 📚 文档结构
 
 ```
 TrainFlashAgent/
-├── skills/
-│   ├── 01-sandbox.md       # 沙盒隔离技能
-│   ├── 02-diagnose.md      # 宏观诊断技能
-│   ├── 03-optimize.md      # 工程优化技能
-│   └── 04-verify.md        # 验证与回写技能
-├── .cursorrules            # Cursor 专用配置
-├── .github/copilot-instructions.md  # Copilot 专用配置
+├── skills/                    # 核心技能规范
+│   ├── 01-sandbox.md         # 创建隔离沙盒
+│   ├── 02-diagnose.md        # 诊断瓶颈
+│   ├── 03-optimize.md        # 应用优化
+│   └── 04-verify.md          # 验证与回写
+├── .cursorrules              # Cursor 配置
+├── .github/copilot-instructions.md  # Copilot 配置
 └── README.md
 ```
 
 ---
 
-## 🛠️ 快速开始
+## 🛠️ 使用示例
 
-### 方式 1: Cursor (推荐)
-
-1. 复制 `.cursorrules` 到你的项目根目录：
-```bash
-cp TrainFlashAgent/.cursorrules /path/to/your/project/
-```
-
-2. 对 Cursor 说：
-> "帮我优化这个项目的训练速度"
-
-Cursor 会自动读取 `.cursorrules`，按照 Skills 流程执行。
-
----
-
-### 方式 2: GitHub Copilot
-
-1. 复制 `.github/copilot-instructions.md` 到你的 `.github/` 目录：
-```bash
-mkdir -p .github
-cp TrainFlashAgent/.github/copilot-instructions.md .github/
-```
-
-2. 在 Copilot Chat 中询问：
-> "如何优化我的训练循环？"
-
----
-
-### 方式 3: Claude Code
-
-1. 将 `skills/` 目录作为上下文提供给 Claude：
-```bash
-claude --context "TrainFlashAgent/skills/"
-```
-
-2. 或者直接引用：
-> "参考 TrainFlashAgent 的 02-diagnose.md 技能，帮我诊断训练瓶颈"
-
----
-
-## 📋 Skills 列表
-
-### Skill 01: Sandbox (沙盒隔离)
-**目标**：创建隔离环境，确保原项目零风险。
-
-**关键步骤**：
-```bash
-rsync -av --exclude '__pycache__' /path/to/project/ /tmp/sandbox/
-```
-
----
-
-### Skill 02: Diagnose (宏观诊断)
-**目标**：用手动计时器识别瓶颈，**不要直接调用 Profiler**。
-
-**关键代码**：
-```python
-import time
-start = time.perf_counter()
-# ... your code ...
-print(f"[TRAINOPT_TIMER] Label: {time.perf_counter() - start:.4f}s")
-```
-
-**分析重点**：
-- DataLoader 时间占比是否 > 40%？
-- 是否存在长尾（max > 2x mean）？
-
----
-
-### Skill 03: Optimize (工程优化)
-**目标**：根据诊断结果应用优化。
-
-**优先级**：
-1. **DataLoader 优化** (num_workers, prefetch_factor) - 2-5x 提升
-2. **资源分配** (batch_size, mixed precision) - 20-50% 提升
-3. **代码模式** (向量化) - 10-30% 提升
-4. **算子优化** - **最后手段**
-
----
-
-### Skill 04: Verify (验证与回写)
-**目标**：验证效果并安全回写。
-
-**验收标准**：
-- 吞吐量提升 > 5%
-- Loss 误差 < 0.001
-- **用户确认后才能回写**
-
----
-
-## 🎯 核心方法论
+### 场景 1: 训练速度慢
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  自顶向下 (Top-Down) 诊断                                │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│   Phase 1: 手动计时器                                     │
-│   ↓ 识别宏观瓶颈 (DataLoad/Forward/Backward)              │
-│                                                          │
-│   Phase 2: 工程优化                                       │
-│   ↓ 解决 IO、长尾、资源分配                                │
-│                                                          │
-│   Phase 3: 仅当 Phase 2 收益趋近于零时，才调用 Profiler   │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
+你：帮我优化训练速度
 
----
-
-## 💡 典型使用场景
-
-### 场景 1: 训练速度慢，不知道瓶颈在哪
-
-```
-用户：帮我优化训练速度
-
-AI (按照 Skills):
-1. 创建沙盒
-2. 插入手动计时器
-3. 运行 100 steps 收集日志
-4. 分析发现 DataLoader 占 60% 时间，且有长尾
-5. 建议：增加 num_workers=8, prefetch_factor=4
-6. 验证：吞吐量从 120 → 180 samples/sec (+50%)
-7. 等待用户确认后回写
+AI:
+1. [沙盒] 已创建沙盒：/tmp/trainflash_sandbox/
+2. [诊断] 插入计时器，运行 100 steps...
+3. [分析] DataLoader 占 60% 时间，存在长尾问题
+4. [建议] 推荐：num_workers=8, prefetch_factor=4
+5. [验证] 吞吐量：120 → 180 samples/sec (+50%)
+6. [等待] 请确认是否回写代码
 ```
 
 ### 场景 2: GPU 利用率低
 
 ```
-用户：GPU 利用率只有 30%，怎么办？
+你：GPU 利用率只有 30%，怎么办？
 
-AI (按照 Skills):
-1. 诊断：Forward/Backward 时间太短
-2. 建议：增加 batch_size 或启用混合精度
-3. 验证：GPU 利用率 → 75%
+AI:
+1. [诊断] Forward/Backward 时间过短
+2. [建议] 增加 batch_size 或启用混合精度训练
+3. [验证] GPU 利用率提升至 75%
 ```
 
 ---
 
-## 📚 与其他项目对比
+## 📖 方法论
 
-| 项目 | 类型 | Star | 特点 |
-|------|------|------|------|
-| airbnb/airbnb-cursor-rules | Markdown Rules | 5k+ | React 开发规范 |
-| paul-gauthier/aider | CLI 工具 | 15k+ | AI 编程助手 |
-| TrainFlashAgent | Markdown Skills | - | 训练性能优化 |
+### 自顶向下诊断
 
-**TrainFlashAgent 的定位**：像 airbnb-cursor-rules 一样，通过 Markdown 规范指导 AI，而不是作为一个独立的工具。
+```
+┌─────────────────────────────────────┐
+│  Phase 1: 手动计时器                 │
+│  → 识别宏观瓶颈                       │
+├─────────────────────────────────────┤
+│  Phase 2: 工程优化                   │
+│  → DataLoader / 资源分配 / 代码模式   │
+├─────────────────────────────────────┤
+│  Phase 3: Profiler (最后手段)        │
+│  → 仅当 Phase 2 收益趋近于零时调用    │
+└─────────────────────────────────────┘
+```
+
+### 优化优先级
+
+1. **数据管道** (num_workers, prefetch_factor) - 通常 2-5x 提升
+2. **资源分配** (batch_size, mixed precision) - 通常 20-50% 提升
+3. **代码模式** (向量化) - 通常 10-30% 提升
+4. **算子优化** - 最后考虑，收益有限
+
+---
+
+## 📋 验收标准
+
+每次优化必须满足：
+
+- ✅ 吞吐量提升 > 5%
+- ✅ Loss 误差 < 0.001
+- ✅ 用户确认后才能回写
 
 ---
 
@@ -192,8 +152,21 @@ AI (按照 Skills):
 
 欢迎提交新的 Skills 或改进现有内容！
 
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/awesome`)
+3. 提交变更 (`git commit -m 'Add awesome skill'`)
+4. 推送到分支 (`git push origin feature/awesome`)
+5. 创建 Pull Request
+
 ---
 
 ## 📄 License
 
-MIT
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+---
+
+## 🙏 致谢
+
+- 灵感来自 [airbnb/airbnb-cursor-rules](https://github.com/airbnb/airbnb-cursor-rules)
+- 适用于 Cursor、GitHub Copilot、Claude Code 等主流 AI 编程工具
