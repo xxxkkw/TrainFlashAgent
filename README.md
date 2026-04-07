@@ -2,114 +2,84 @@
 
 **让 AI 智能体像顶级性能工程师一样优化你的深度学习训练速度。**
 
-TrainFlashAgent 是一个基于沙盒的、自顶向下的训练性能自动优化框架。它通过 LLM 驱动的闭环决策，在隔离环境中诊断瓶颈、实施工程级优化、验证效果，最终安全回写优化代码。
+TrainFlashAgent 是一套 MCP Skills，让 LLM 能够自主进行深度学习训练性能的自顶向下优化。LLM 通过调用这些 Skills，在沙盒环境中诊断瓶颈、实施优化、验证效果，最终安全回写。
 
 ---
 
 ## 🚀 核心特性
 
 - **🔒 沙盒隔离**：所有实验在物理隔离的沙盒中进行，确保原项目零风险
-- **📊 自顶向下诊断**：优先解决 IO/数据长尾/同步阻塞等高影响瓶颈，而非陷入算子级微优化
-- **🤖 Agent-Native**：设计为 MCP Server，可无缝集成到 Cursor/Claude Desktop 等 AI 编辑器
-- **📈 量化审计**：每次修改都有明确的收益记录和模型保真度验证
-- **🎯 晋级门控**：只有当前阶段达到性能平台期，才会解锁下一层级的诊断
+- **📊 自顶向下诊断**：优先解决 IO/数据长尾/同步阻塞等高影响瓶颈
+- **🤖 Agent-Native**：纯 Skills 设计，LLM 自主决策，无预设流程限制
+- **🔧 模块化工具**：每个 Skill 独立，可自由组合调用
 
 ---
 
-## 🏗️ 架构设计
+## 🏗️ 架构
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    MCP Server Layer                      │
-│         (Expose skills to LLM via MCP protocol)          │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│                  TuningManager                           │
-│              (Orchestration & State Machine)             │
-└──┬─────────┬────────────┬────────────┬──────────┬───────┘
-   │         │            │            │          │
-┌──▼───┐ ┌──▼────┐  ┌────▼─────┐ ┌───▼─────┐ ┌──▼────────┐
-│Sandbox│ │Diagnostics│ │Intervention│ │Verification│ │Governance│
-│Manager│ │(Top-Down)│ │(Engineering)│ │(Fidelity) │ │(Gate)   │
-└───────┘ └─────────┘  └───────────┘ └──────────┘ └─────────┘
+LLM (自主决策)
+     ↓ 调用 Skills
+┌─────────────────────────────────────────┐
+│         MCP Server (Skills Layer)        │
+│  create_sandbox()  inject_timer()        │
+│  collect_logs()    analyze_variance()    │
+│  optimize_data_pipeline()  benchmark()   │
+│  edit_code()       merge_to_main()       │
+└────────────────────┬─────────────────────┘
+                     ↓ 工具实现
+           src/trainflashagent/
 ```
 
 ---
 
-## 📋 优化流程
+## 📋 Skills 列表
 
-### Phase 1: 宏观诊断 (Macro-Diagnostics)
-通过 `AST` 在训练循环的关键节点注入手动计时器，识别：
-- 哪个阶段（DataLoad/Forward/Backward）是主要瓶颈
-- 是否存在数据长尾导致的时间方差
+### 沙盒管理
+| Skill | 说明 |
+|-------|------|
+| `create_sandbox(project_root, sandbox_name)` | 克隆项目到沙盒 |
+| `create_snapshot(sandbox_name, label)` | 创建快照（修改前调用） |
+| `rollback_to_snapshot(sandbox_name, label)` | 回滚到快照 |
+| `merge_to_main(sandbox_name, project_root)` | 合并回原项目 |
 
-### Phase 2: 工程调优 (Engineering Tuning)
-根据诊断结果实施优化：
-- **IO/Data**：调整 `num_workers`, `prefetch_factor`, 数据打包策略
-- **资源**：优化 Batch Size、显存布局、梯度累积
-- **等价替换**：将低效代码模式替换为高性能实现
+### 诊断（Phase 1-3）
+| Skill | 说明 |
+|-------|------|
+| `inject_timer(file_path, function, label)` | AST 注入手动计时器 |
+| `collect_logs(script_path, steps)` | 运行并收集计时日志 |
+| `analyze_variance(logs)` | 分析瓶颈和长尾 |
+| `run_profiler(script_path, steps)` | 算子级 Profiler（最后手段） |
 
-### Phase 3: 微观诊断 (Micro-Diagnostics)
-仅当 Phase 2 收益趋近于零时，调用 `torch.profiler` 进行算子级分析。
+### 干预（Phase 2）
+| Skill | 说明 |
+|-------|------|
+| `optimize_data_pipeline(file_path, strategy)` | 优化 DataLoader 设置 |
+| `tune_resources(file_path, params)` | 调整 batch_size 等资源参数 |
+| `edit_code(file_path, pattern, replacement)` | 通用代码修改 |
 
-### 验证与回写
-- **吞吐量基准**：测量 samples/sec 提升
-- **模型保真度**：对比 Loss 曲线和梯度分布
-- **用户确认**：收益报告 → 用户批准 → 安全回写
+### 验证
+| Skill | 说明 |
+|-------|------|
+| `benchmark_throughput(script_path, steps)` | 测量吞吐量 |
+| `verify_fidelity(baseline_losses, optimized_losses)` | 验证模型保真度 |
+
+### 辅助
+| Skill | 说明 |
+|-------|------|
+| `read_file(file_path)` | 读取文件内容 |
+| `list_files()` | 列出所有 Python 文件 |
 
 ---
 
 ## 🛠️ 快速开始
 
-### 安装
-```bash
-pip install -e .
-```
-
-### 作为 Python 库使用
-```python
-from trainflashagent import TuningManager
-
-manager = TuningManager(
-    project_root="./my_training_project",
-    sandbox_root="./sandbox",
-    baseline_throughput=100.0  # 可选：原始吞吐量
-)
-
-# 1. 初始化沙盒
-manager.setup_environment()
-
-# 2. 运行宏观诊断
-report = manager.run_macro_diagnostic(
-    target_file="train.py",
-    target_func="train_step",
-    label="TotalLoop"
-)
-
-# 3. 应用优化并验证
-result = manager.apply_and_verify_intervention(
-    file_rel_path="train.py",
-    intervention_type="data_pipeline",
-    params={"strategy": "balanced"}
-)
-
-# 4. 查看收益报告
-print(manager.get_gain_report())
-
-# 5. 用户批准后提交
-manager.approve_pending_gains()
-
-# 6. 最终合并
-manager.finalize_and_merge()
-```
-
-### 作为 MCP Server 使用
+### 启动 MCP Server
 ```bash
 python -m trainflashagent_mcp.server
 ```
 
-在 Cursor 或 Claude Desktop 的 MCP 配置中添加：
+### 在 Cursor / Claude Desktop 中配置
 ```json
 {
   "mcpServers": {
@@ -121,8 +91,19 @@ python -m trainflashagent_mcp.server
 }
 ```
 
-然后直接对 AI 说：
-> "帮我把这个训练项目的速度提升 20%，不要影响精度"
+### 使用示例
+
+配置完成后，直接对 AI 说：
+
+> "帮我把 /path/to/my/training/project 的训练速度优化一下"
+
+AI 会自动调用 Skills 执行以下流程：
+
+1. **创建沙盒**：`create_sandbox("/path/to/my/training/project")`
+2. **诊断瓶颈**：`inject_timer()` → `collect_logs()` → `analyze_variance()`
+3. **实施优化**：根据诊断结果调用 `optimize_data_pipeline()` 或 `tune_resources()`
+4. **验证效果**：`benchmark_throughput()` 对比优化前后
+5. **回写代码**：`merge_to_main()`
 
 ---
 
@@ -131,22 +112,21 @@ python -m trainflashagent_mcp.server
 ```
 TrainFlashAgent/
 └── src/trainflashagent/
-    ├── sandbox.py          # 沙盒隔离与版本管理
-    ├── diagnostics.py      # 自顶向下诊断工具
-    ├── interventions.py    # 工程级优化干预
-    ├── verification.py     # 性能与保真度验证
-    ├── governance.py       # 审计日志与晋级门控
-    └── manager.py          # 统一编排器
+    ├── sandbox.py          # 沙盒工具
+    ├── diagnostics.py      # 诊断工具
+    ├── interventions.py    # 干预工具
+    └── verification.py     # 验证工具
+└── src/trainflashagent_mcp/
+    └── server.py           # MCP Skills 暴露层
 ```
 
 ---
 
-## 🎯 适用场景
+## 🎯 自顶向下方法论
 
-- ✅ 深度学习训练速度慢，但不知道瓶颈在哪
-- ✅ 希望自动化调优流程，减少手动试错
-- ✅ 需要确保优化不影响模型精度
-- ✅ 使用 Cursor/Claude Desktop 等 AI 编辑器
+1. **Phase 1 - 宏观诊断**：先用手动计时器识别哪个阶段是瓶颈
+2. **Phase 2 - 工程调优**：优化 IO、数据加载、资源分配
+3. **Phase 3 - 微观诊断**：仅当 Phase 2 收益趋近于零时，才调用 Profiler
 
 ---
 
