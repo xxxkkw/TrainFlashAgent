@@ -10,7 +10,7 @@
 
 </div>
 
-English is the default. For Chinese documentation, see [README_zh.md](README_zh.md).
+English | [中文](README_zh.md)
 
 ## Overview
 TrainFlashAgent is a set of Skills (Markdown playbooks) for improving deep learning training performance.

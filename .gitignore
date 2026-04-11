@@ -29,3 +29,6 @@ swin/
 dir/
 bench.py
 test_gemma4_256k_context.py
+
+# Design notes (local)
+docs/

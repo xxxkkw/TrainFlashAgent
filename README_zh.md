@@ -10,6 +10,8 @@
 
 </div>
 
+中文 | [English](README.md)
+
 ## 简介
 TrainFlashAgent 是一套面向深度学习训练提速的 Skills（Markdown playbooks）。
 它定义了一条可执行的优化流程：先用低开销诊断拿到证据，再做工程与训练策略层优化，最后用可复现的指标完成验证与回写治理。
