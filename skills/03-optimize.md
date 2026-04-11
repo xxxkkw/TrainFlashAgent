@@ -1,253 +1,225 @@
-# Skill: Optimize (工程级优化)
+# Skill 03 — Optimize (Engineering-Level Speedups)
 
-**目标**：根据诊断结果，应用工程级别的优化，**优先解决 IO、数据长尾、资源分配问题**。
+## Purpose
+- Apply the smallest set of changes that materially improves training throughput/step-time.
+- Prefer “engineering wins” (input pipeline, batching strategy, synchronization removal, training-loop policy) before kernel-level tuning.
 
----
+## Contract
+**Inputs**
+- A completed Diagnostic Report from Skill 02.
+- Constraints: maximum acceptable quality drift, allowed code change scope, and whether new dependencies are allowed.
 
-## 核心原则
+**Outputs**
+- An Optimization Plan: ordered list of candidate changes with expected impact and risk.
+- A measurable before/after result (throughput or step-time).
+- A short Optimization Log that can be used for review and later rollback.
 
-**优化优先级（从高到低）：**
+## Guardrails (MUST)
+- MUST change one variable at a time when benchmarking (avoid confounded wins).
+- MUST preserve baseline behavior unless explicitly documented (same data order/seed if applicable).
+- MUST keep changes reversible and reviewable (small diff, clear config knobs).
+- MUST NOT introduce new dependencies without explicitly stating why and what alternatives exist.
+- MUST keep “speed” and “training efficiency” separate:
+  - Step throughput improvements are not sufficient if they worsen convergence (see Skill 04).
 
-1. **数据管道优化** (IO/长尾) - 通常能带来 2-5x 提升
-2. **资源分配优化** (batch_size, workers) - 通常能带来 20-50% 提升
-3. **代码模式优化** (等价替换) - 通常能带来 10-30% 提升
-4. **算子级优化** - **最后手段**，通常收益有限 (<10%)
+## Prioritization (Default)
+1. Input pipeline (I/O, dataloader parallelism, tail latency)
+2. Training strategy (effective batch, sampler/bucketing, shape stabilization)
+3. Resource utilization (batching, gradient accumulation)
+4. Synchronization removal (CPU↔GPU stalls, logging, `.item()` patterns)
+5. Kernel-level / profiler-driven micro-optimizations
 
----
+## Decision Map (Start Here)
+- If `Data` is the largest share or shows long-tail: focus on **Input pipeline**.
+- If compute dominates but GPU utilization is low: focus on **Batching / overlap / stalls**.
+- If timings show large variance or unexpected stalls: focus on **Sync removal**.
 
-## 场景 1: DataLoader 优化
+## Planning With Files (Lightweight)
+Before editing, produce a 5–10 line plan that is easy to review.
 
-**触发条件**：诊断报告显示 `DataLoader` 时间占比 > 40%
+Template:
+```
+[Optimization Plan]
+Hypothesis: <what is limiting throughput or training efficiency>
 
-### 优化策略
+Files to Modify:
+- <path>: <what change>
 
-#### A. 增加 worker 数量
+Benchmark Plan:
+- Baseline: <command/config>, warmup=<n>, measure=<n>, metric=<samples/sec|sec/step|tokens/sec>
+- Optimized: <same protocol>
 
-```python
-# 原代码
-train_loader = DataLoader(dataset, batch_size=32, num_workers=0)
-
-# 优化后
-train_loader = DataLoader(
-    dataset,
-    batch_size=32,
-    num_workers=8,           # ← 增加到 4-8 (根据 CPU 核心数)
-    prefetch_factor=4,       # ← 添加预取
-    persistent_workers=True, # ← 保持 worker 存活
-    pin_memory=True          # ← 启用 GPU 内存锁定
-)
+Risks:
+- <convergence drift / stability / tail latency / memory>
 ```
 
-#### B. 调整 prefetch_factor
+## Playbook
+### Track A — Input Pipeline (Data dominates)
+**Goal:** keep the GPU fed; reduce tail latency.
 
+Common actions (PyTorch examples; adapt if your stack differs):
+- Increase dataloader parallelism:
+  - `num_workers`: start from `min(8, cpu_cores)` and tune.
+  - `persistent_workers=True` (when workers are >0).
+  - `prefetch_factor`: start at 2–4; increase if GPU waits for data.
+  - `pin_memory=True` (if using CUDA).
+
+Example:
 ```python
-# 如果 GPU 经常等待数据
-train_loader = DataLoader(
-    dataset,
-    batch_size=32,
-    num_workers=8,
-    prefetch_factor=8        # ← 增加到 4-8
-)
-```
+import os
 
-#### C. 处理数据长尾
-
-如果诊断显示 `max >> mean`，说明存在长尾样本：
-
-```python
-# 方案 1: 使用 collate_fn 进行动态 padding
-def dynamic_collate_fn(batch):
-    images, labels = zip(*batch)
-    # 动态调整，避免过度 padding
-    images = pad_sequence(images, batch_first=True, padding_value=0)
-    return images, torch.stack(labels)
-
-train_loader = DataLoader(
-    dataset,
-    batch_size=32,
-    collate_fn=dynamic_collate_fn
-)
-```
-
-```python
-# 方案 2: 使用 BatchSampler 进行长度排序
-from torch.utils.data import BatchSampler
-
-class LengthBasedBatchSampler:
-    def __init__(self, dataset, batch_size, shuffle=True):
-        # 按长度排序数据
-        lengths = [len(item) for item in dataset]
-        indices = sorted(range(len(dataset)), key=lambda i: lengths[i])
-        self.indices = indices
-        self.batch_size = batch_size
-    
-    def __iter__(self):
-        batches = []
-        batch = []
-        for idx in self.indices:
-            batch.append(idx)
-            if len(batch) == self.batch_size:
-                batches.append(batch)
-                batch = []
-        if batch:
-            batches.append(batch)
-        return iter(batches)
-    
-    def __len__(self):
-        return len(self.indices) // self.batch_size
+cpu_cores = os.cpu_count() or 8
+num_workers = min(8, cpu_cores)
 
 train_loader = DataLoader(
     dataset,
-    batch_sampler=LengthBasedBatchSampler(dataset, batch_size=32)
+    batch_size=batch_size,
+    num_workers=num_workers,
+    prefetch_factor=4,
+    persistent_workers=(num_workers > 0),
+    pin_memory=True,
 )
 ```
 
----
+If long-tail is present (p95/max ≫ mean):
+- Identify whether tail comes from:
+  - slow samples (heavy decoding / variable-length padding)
+  - shared storage jitter
+  - CPU contention (too many workers, other processes)
+- Mitigations:
+  - move expensive preprocessing offline or cache results
+  - reduce per-sample Python work in `__getitem__`
+  - bucket by sequence length / use dynamic padding (NLP/audio) to reduce worst-case batches
+  - tune workers downward if the system thrashes
 
-## 场景 2: 资源分配优化
+### Track B — Effective Batch & Optimizer-Step Policy (Training strategy)
+**Goal:** increase efficiency per wall-clock hour without breaking convergence.
 
-**触发条件**：GPU 利用率 < 70% 或 显存使用率 < 80%
+Definitions:
+- `micro_batch`: per-device batch processed per forward/backward
+- `accum_steps`: number of micro-batches per optimizer update
+- `effective_batch`: `micro_batch * accum_steps * world_size` (if distributed)
 
-### 优化策略
+Rules of thumb (MUST document which one you use):
+- If you change `effective_batch`, you MUST explicitly state how learning rate and scheduler stepping behave.
+- Compare results under a consistent “budget”:
+  - same number of optimizer steps, or
+  - same number of samples/tokens, or
+  - same wall-clock (for throughput-only checks)
 
-#### A. 增加 batch_size
+Minimal checklist:
+- [ ] `optimizer.step()` frequency matches the intended `accum_steps`
+- [ ] scheduler steps on the intended cadence (per optimizer step vs per micro-step)
+- [ ] logging reports both micro-step and optimizer-step counts
 
+### Track C — Sampler / Bucketing / Shape Stabilization (Training strategy)
+**Goal:** reduce padding waste and long-tail batches; keep shapes stable.
+
+Use when:
+- sequences/images have variable length/shape
+- `Data` shows long-tail, or step time variance is high
+- average throughput is fine but p95/max is bad
+
+Actions (pick the smallest viable):
+- Length/shape bucketing (group similar lengths/shapes into the same batch)
+- “Sortish” sampling (partial sort + shuffle to keep randomness)
+- Cap extreme samples (only if acceptable; MUST document impact)
+- Track “work per step”:
+  - tokens/frames/pixels per step, not only samples per step
+
+Acceptance signal:
+- step time p95 drops meaningfully, not just the mean
+
+### Track D — Training Loop Overheads (Eval / Checkpoint / Logging policy)
+**Goal:** reduce non-training work that steals wall-clock time.
+
+Common problems:
+- validation too frequent
+- checkpoint saving too frequent or too large
+- per-step logging/metrics doing heavy CPU work
+
+Actions:
+- Decouple “benchmark config” from “full training config”
+- Log every N steps; aggregate metrics on-device when possible; sync less often
+- Run eval less frequently during exploratory tuning, then restore for final runs
+- Save checkpoints on a coarser schedule (or only on improvements) during tuning
+
+### Track E — Distributed Training Policy (If applicable)
+**Goal:** avoid synchronization overheads and correctness traps in multi-GPU training.
+
+Actions:
+- Use gradient accumulation with `no_sync()` (DDP) for micro-steps, sync only on the final micro-step
+- Ensure distributed samplers are configured correctly (e.g., epoch setting, sharding)
+- Ensure eval/checkpointing happens on rank 0 only
+
+Guardrails:
+- MUST verify `effective_batch` calculation includes `world_size`
+- MUST verify reproducibility/seed behavior is acceptable for comparisons
+
+### Track F — Resource Utilization (Compute dominates, GPU underutilized)
+**Goal:** increase effective work per step and reduce overhead.
+
+Actions:
+- Increase `batch_size` until memory is near the target utilization.
+- If OOM, use gradient accumulation to raise effective batch size.
+- Use mixed precision (if supported) and validate quality.
+
+Gradient accumulation sketch:
 ```python
-# 原代码
-batch_size = 32
-
-# 优化后 (逐步增加直到显存接近满载)
-batch_size = 128  # 或根据显存调整
-```
-
-#### B. 启用梯度累积
-
-```python
-# 如果 batch_size 太大导致 OOM，使用梯度累积
-accumulation_steps = 4
-effective_batch_size = batch_size * accumulation_steps
-
-for i, (inputs, labels) in enumerate(dataloader):
-    outputs = model(inputs)
-    loss = criterion(outputs, labels) / accumulation_steps
+accum_steps = 4
+for i, batch in enumerate(dataloader):
+    loss = compute_loss(batch) / accum_steps
     loss.backward()
-    
-    if (i + 1) % accumulation_steps == 0:
+    if (i + 1) % accum_steps == 0:
         optimizer.step()
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 ```
 
-#### C. 启用混合精度训练
+### Track G — Synchronization Removal (Stalls / high variance)
+**Goal:** avoid accidental CPU↔GPU sync and reduce Python overhead.
 
-```python
-# 原代码
-loss = criterion(outputs, labels)
-loss.backward()
+Common fixes:
+- Reduce frequent `.item()` calls inside the step loop.
+- Avoid per-step heavy logging/printing; log every N steps.
+- Keep metrics aggregation on-device when possible; only sync occasionally.
+- Ensure validation runs under no-grad/inference mode if applicable.
 
-# 优化后
-from torch.cuda.amp import autocast, GradScaler
+## Benchmark Protocol (MUST)
+- Use the same command-line/config for baseline and optimized runs.
+- Include warmup, then measure on a fixed step window.
+- Record:
+  - throughput (samples/sec) or step time (sec/step)
+  - max memory usage (if available)
+  - any stability issues (OOM, NaNs, divergence)
 
-scaler = GradScaler()
+## Definition of Done
+- [ ] One or more changes are applied with a clean, reviewable diff.
+- [ ] Performance improves by a meaningful amount for the target workload.
+- [ ] No quality regression beyond the agreed tolerance.
+- [ ] A complete Optimization Log is produced.
 
-with autocast():
-    outputs = model(inputs)
-    loss = criterion(outputs, labels)
-
-scaler.scale(loss).backward()
-scaler.step(optimizer)
-scaler.update()
-```
-
----
-
-## 场景 3: 代码模式优化
-
-**触发条件**：诊断显示 Python 侧开销大
-
-### 优化策略
-
-#### A. 向量化替代循环
-
-```python
-# 低效
-results = []
-for item in data:
-    results.append(process(item))
-results = torch.stack(results)
-
-# 高效 (如果可能)
-results = torch.stack([process(item) for item in data])  # 至少减少 append 开销
-# 或完全向量化
-results = process_batch(data)
-```
-
-#### B. 减少 .item() 调用
-
-```python
-# 低效 (频繁 CPU-GPU 同步)
-for i in range(len(losses)):
-    total_loss += losses[i].item()
-
-# 高效
-total_loss = losses.sum().item()  # 或直接在 GPU 上计算
-```
-
-#### C. 使用 torch.no_grad()
-
-```python
-# 验证阶段
-with torch.no_grad():  # ← 添加这个
-    outputs = model(inputs)
-    loss = criterion(outputs, labels)
-```
-
----
-
-## 验证优化效果
-
-每次优化后，必须验证：
-
-```bash
-# 1. 测量优化前的吞吐量
-python train.py --benchmark --steps 100 > baseline.txt
-
-# 2. 应用优化
-
-# 3. 测量优化后的吞吐量
-python train.py --benchmark --steps 100 > optimized.txt
-
-# 4. 对比
-# 提取 [TRAINOPT_THROUGHPUT] 值并计算提升
-```
-
-### 验收标准
-
-- [ ] 吞吐量提升 > 5%
-- [ ] 模型 Loss 曲线与原版一致（误差 < 0.001）
-- [ ] 无明显 OOM 或稳定性问题
-
----
-
-## 优化日志模板
-
+## Optimization Log (Template)
 ```
 [Optimization Log]
-Date: 2026-04-07
-Skill: 03-optimize.md
+Baseline:
+- Workload: <model/dataset/steps>
+- Metric: <samples/sec or sec/step>
+- Result: <value>
 
-Change Applied:
-- File: train.py
-- Modification: Increased num_workers from 0 to 8, added prefetch_factor=4
+Change Set:
+- Files/Configs: <list>
+- Change: <one sentence>
+- Rationale: <one sentence linked to Diagnostic Report>
 
-Baseline Throughput: 120 samples/sec
-Optimized Throughput: 180 samples/sec
-Improvement: +50%
+Optimized:
+- Metric: <same metric>
+- Result: <value>
+- Delta: <+x%>
 
-Fidelity Check:
-- Loss difference: 0.0002 (< 0.001 tolerance)
-- Status: PASSED
+Quality / Fidelity:
+- Criterion: <loss delta / eval metric / tolerance>
+- Status: <pass|fail>
 
-Decision:
-□ Commit to main
-□ Rollback (if fidelity failed)
+Next:
+- Proceed to Skill 04 — Verify (full check + writeback decision)
 ```

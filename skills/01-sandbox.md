@@ -1,84 +1,82 @@
-# Skill: Sandbox (沙盒隔离)
+# Skill 01 — Sandbox (Isolate Before You Touch Anything)
 
-**目标**：在修改任何代码之前，创建一个完全隔离的沙盒环境。
+## Purpose
+- Create a fully isolated workspace for all experiments before changing any source code.
 
----
+## Scope
+- Applies to: any training project where code/config changes may impact correctness, reproducibility, or model quality.
+- Not in scope: “quick edits” on the original project directory.
 
-## 为什么需要沙盒
+## Contract
+**Inputs**
+- `PROJECT_ROOT`: the path to the original training project.
+- A sandbox base directory you can safely write to (e.g., `/tmp`, a scratch disk).
 
-优化深度学习训练代码有高风险：
-- 可能破坏原有代码结构
-- 可能引入难以调试的 bug
-- 可能影响模型精度
+**Outputs**
+- `SANDBOX_ROOT`: a cloned project directory you will use for all edits and runs.
+- A short “Sandbox Report” that records what was cloned and how to reproduce the sandbox.
 
-**沙盒确保所有实验都在隔离环境中进行，原项目零风险。**
+## Guardrails (MUST)
+- MUST NOT modify any files under `PROJECT_ROOT`.
+- MUST exclude VCS metadata and transient artifacts from the clone (`.git/`, caches, large checkpoints unless required).
+- MUST keep sandbox changes reviewable (prefer a clean diff against the original).
 
----
+## Procedure
+### Step 1 — Choose paths
+- Set `PROJECT_ROOT` to the original project directory.
+- Derive a stable sandbox directory name (project name + date or a short hash).
 
-## 执行步骤
-
-### Step 1: 确定项目路径
-
+Example:
 ```bash
-# 确认要优化的项目路径
 PROJECT_ROOT="/path/to/training/project"
-```
-
-### Step 2: 创建沙盒目录
-
-```bash
 SANDBOX_ROOT="/tmp/trainflashagent_sandboxes/<project_name>"
+```
+
+### Step 2 — Clone into the sandbox
+Preferred (keeps permissions and is selective):
+```bash
 mkdir -p "$SANDBOX_ROOT"
+rsync -a \
+  --exclude ".git" \
+  --exclude "__pycache__" \
+  --exclude "*.pyc" \
+  --exclude ".pytest_cache" \
+  --exclude ".mypy_cache" \
+  --exclude ".venv" \
+  "$PROJECT_ROOT/" "$SANDBOX_ROOT/"
 ```
 
-### Step 3: 克隆项目
+If `rsync` is unavailable, use a full copy and then remove transient files.
 
+### Step 3 — Sanity check the clone
+- Confirm the entry point and configuration files exist.
+- Confirm the sandbox can run a minimal command (import checks or a dry-run flag if available).
+
+Example:
 ```bash
-# 使用 rsync 或 cp 进行完整克隆
-rsync -av --exclude '__pycache__' --exclude '*.pyc' --exclude '.git' \
-      "$PROJECT_ROOT/" "$SANDBOX_ROOT/"
+ls "$SANDBOX_ROOT"
 ```
 
-### Step 4: 验证克隆
+### Step 4 — Define “writeback” policy upfront
+- Decide how changes will be transferred back:
+  - Option A: copy a small set of files (recommended for minimal risk).
+  - Option B: apply a patch / PR-style diff.
+  - Option C: sync the full directory (only if you can guarantee exclusions and review).
 
-```bash
-# 确认关键文件存在
-ls "$SANDBOX_ROOT/train.py"
-ls "$SANDBOX_ROOT/requirements.txt"
+## Definition of Done
+- [ ] Sandbox directory exists and contains a runnable clone of the project.
+- [ ] No files in `PROJECT_ROOT` were modified.
+- [ ] A writeback method is chosen and documented.
+- [ ] Sandbox Report is produced.
+
+## Sandbox Report (Template)
 ```
-
----
-
-## 检查清单
-
-在执行任何优化之前，确认：
-
-- [ ] 沙盒目录已创建
-- [ ] 关键训练脚本已复制
-- [ ] 配置文件已复制
-- [ ] 原项目路径未被修改
-
----
-
-## 回滚方案
-
-如果沙盒中的修改失败：
-
-```bash
-# 删除沙盒，重新克隆
-rm -rf "$SANDBOX_ROOT"
-rsync -av "$PROJECT_ROOT/" "$SANDBOX_ROOT/"
-```
-
----
-
-## 输出格式
-
-成功后，记录：
-
-```
-[Sandbox Created]
-- Project: /path/to/training/project
-- Sandbox: /tmp/trainflashagent_sandboxes/<project_name>
-- Timestamp: 2026-04-07T10:30:00
+[Sandbox Report]
+Project Root: <PROJECT_ROOT>
+Sandbox Root: <SANDBOX_ROOT>
+Clone Method: <rsync|cp|other>
+Excluded Paths: <.git, caches, ...>
+Entry Point: <train.py / launcher command>
+Writeback Plan: <copy files|patch|rsync>
+Notes: <anything special about env/data>
 ```

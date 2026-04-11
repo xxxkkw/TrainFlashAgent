@@ -47,16 +47,15 @@ DataLoader(dataset,
 )
 ```
 
-**If GPU utilization is low (<70%):**
-```python
-# Increase batch_size
-# Or enable mixed precision
-from torch.cuda.amp import autocast, GradScaler
-```
+**If compute dominates but utilization is low or variance is high:**
+- Adjust effective batch strategy (micro-batch vs gradient accumulation) and document optimizer-step cadence.
+- Use sampler/bucketing or shape stabilization for variable-size workloads to reduce padding waste and tail latency.
+- Reduce training-loop overhead (logging / eval / checkpoint cadence) during tuning runs.
 
 ### Phase 4: Verify
 - Measure throughput improvement
 - Verify loss curve consistency (diff < 0.001)
+- If training strategy changed, add a short convergence-aware sanity check under an explicit “equal budget” protocol
 - Get user approval before merging
 
 ---

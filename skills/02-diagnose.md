@@ -1,169 +1,182 @@
-# Skill: Diagnose (宏观诊断)
+# Skill 02 — Diagnose (Top-Down Bottleneck Identification)
 
-**目标**：使用自顶向下的方法识别训练瓶颈，**优先使用手动计时器**，而非直接调用 Profiler。
+## Purpose
+- Identify the dominant training bottleneck with low overhead.
+- Start macro-first (input pipeline vs compute vs synchronization) before using heavy profilers.
 
----
+## Scope
+- Applies to: any training loop where you can add lightweight timing.
+- Not in scope: kernel-level tuning as the first step.
 
-## 核心原则
+## Principle
+- MUST start with manual timing (step-level phases).
+- MAY use a profiler only after engineering-level optimizations plateau.
 
-**不要直接调用 torch.profiler 或 Nsight！**
+## Contract
+**Inputs**
+- Training entry point (script/command) and a way to run a fixed number of steps.
+- A representative dataset slice (or a deterministic synthetic loader if the real dataset is too slow to iterate).
 
-这些工具会产生算子级别的细节（成千上万个 kernel），让 LLM 陷入微观分析，错过真正的工程瓶颈。
+**Outputs**
+- A “Diagnostic Report” with:
+  - Mean step-time breakdown by phase (percentages + seconds)
+  - Variance / long-tail signals (p95/max vs mean)
+  - A single primary bottleneck hypothesis and next action focus
 
-**正确的顺序：**
-1. **Phase 1**: 手动计时器 → 识别宏观瓶颈（DataLoad/Forward/Backward）
-2. **Phase 2**: 工程优化 → 解决 IO、数据长尾、同步阻塞
-3. **Phase 3**: 仅当 Phase 2 收益趋近于零时，才调用 Profiler
+## Guardrails (MUST)
+- MUST keep instrumentation easy to remove (single helper + tag prefix).
+- MUST include warmup steps and then measure on a fixed window.
+- If measuring GPU work, MUST avoid misleading async timing:
+  - Option A (recommended): synchronize before stopping a timer.
+  - Option B: time CPU-side only and label it as such.
 
----
+## Procedure
+### Step 1 — Define phases to time
+Time at least these phases per training step:
+- `Data`: waiting for the next batch / preprocessing
+- `H2D`: host-to-device transfer (if explicit)
+- `Fwd`: forward pass (+ loss)
+- `Bwd`: backward pass
+- `Opt`: optimizer step (+ zero grad)
 
-## Step 1: 插入手动计时器
+If your training loop includes significant “outside-step” work, also time:
+- `Eval`: validation / metrics runs
+- `Ckpt`: checkpoint saving
+- `Log`: heavy logging / visualization
 
-在训练循环的关键位置插入 `time.perf_counter()`。
-
-### 目标位置
-
-```python
-# 在 train.py 中找到训练循环
-def train_epoch(model, dataloader, optimizer):
-    for batch in dataloader:           # ← 在这里插入计时器
-        images, labels = batch
-        outputs = model(images)        # ← Forward 开始
-        loss = criterion(outputs, labels)
-        loss.backward()                # ← Backward 开始
-        optimizer.step()               # ← Step 结束
-```
-
-### 插入代码
-
+### Step 2 — Add a minimal timer utility
+Python (stdlib-only):
 ```python
 import time
 
-def train_epoch(model, dataloader, optimizer):
-    for batch_idx, batch in enumerate(dataloader):
-        # === [TRAINOPT_TIMER] DataLoader ===
-        start_dataloader = time.perf_counter()
-        
-        images, labels = batch
-        
-        end_dataloader = time.perf_counter()
-        print(f"[TRAINOPT_TIMER] DataLoader: {end_dataloader - start_dataloader:.4f}s")
-        # ====================================
-        
-        # === [TRAINOPT_TIMER] Forward ===
-        start_forward = time.perf_counter()
-        
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        
-        end_forward = time.perf_counter()
-        print(f"[TRAINOPT_TIMER] Forward: {end_forward - start_forward:.4f}s")
-        # ==================================
-        
-        # === [TRAINOPT_TIMER] Backward ===
-        start_backward = time.perf_counter()
-        
-        loss.backward()
-        optimizer.step()
-        
-        end_backward = time.perf_counter()
-        print(f"[TRAINOPT_TIMER] Backward: {end_backward - start_backward:.4f}s")
-        # ==================================
+class PhaseTimer:
+    def __init__(self, prefix="[TFA_TIMER]"):
+        self.prefix = prefix
+        self.t0 = None
+        self.name = None
+
+    def start(self, name: str):
+        self.name = name
+        self.t0 = time.perf_counter()
+
+    def stop(self, extra: str = ""):
+        dt = time.perf_counter() - self.t0
+        if extra:
+            print(f"{self.prefix} {self.name} {dt:.6f} {extra}")
+        else:
+            print(f"{self.prefix} {self.name} {dt:.6f}")
+        self.t0 = None
+        self.name = None
 ```
 
----
-
-## Step 2: 运行并收集日志
-
-```bash
-# 运行至少 50-100 个 step
-python train.py --steps 100 2>&1 | tee timer_logs.txt
+If you use PyTorch and want accurate GPU timings, synchronize right before `stop()`:
+```python
+def cuda_sync_if_available():
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+    except Exception:
+        pass
 ```
 
-### 预期输出
+### Step 3 — Instrument the training step
+Pseudo-structure (adapt to your project):
+```python
+timer = PhaseTimer()
 
+for step_idx, batch in enumerate(dataloader):
+    if step_idx < WARMUP_STEPS:
+        pass
+
+    timer.start("Data")
+    # batch is already fetched by the loop; if you can time fetch explicitly, do it there
+    timer.stop()
+
+    timer.start("H2D")
+    # move tensors to GPU if applicable
+    # cuda_sync_if_available()
+    timer.stop()
+
+    timer.start("Fwd")
+    # forward + loss
+    # cuda_sync_if_available()
+    timer.stop()
+
+    timer.start("Bwd")
+    # backward
+    # cuda_sync_if_available()
+    timer.stop()
+
+    timer.start("Opt")
+    # optimizer step + zero_grad
+    # cuda_sync_if_available()
+    timer.stop()
 ```
-[TRAINOPT_TIMER] DataLoader: 0.5234s
-[TRAINOPT_TIMER] Forward: 0.1234s
-[TRAINOPT_TIMER] Backward: 0.2345s
-[TRAINOPT_TIMER] DataLoader: 0.4521s
-[TRAINOPT_TIMER] Forward: 0.1198s
-...
-```
 
----
+### Step 4 — Run a controlled measurement
+- Warm up `WARMUP_STEPS` (e.g., 10–20).
+- Measure `MEASURE_STEPS` (e.g., 50–200).
+- Save logs to a file.
 
-## Step 3: 分析瓶颈
-
-### 计算统计
-
+### Step 5 — Summarize (stdlib-only)
 ```python
 import re
-import numpy as np
+import statistics
 
-# 解析日志
-pattern = r"\[TRAINOPT_TIMER\]\s+(\w+):\s+([0-9.]+)s"
-matches = re.findall(pattern, open("timer_logs.txt").read())
+pattern = re.compile(r"^\[TFA_TIMER\]\s+(\w+)\s+([0-9.]+)", re.M)
+text = open("timer_logs.txt", "r", encoding="utf-8", errors="ignore").read()
+rows = pattern.findall(text)
 
-# 按阶段分组
-data = {}
-for label, value in matches:
-    if label not in data:
-        data[label] = []
-    data[label].append(float(value))
+by_phase = {}
+for name, value in rows:
+    by_phase.setdefault(name, []).append(float(value))
 
-# 计算统计
-for label, times in data.items():
-    mean = np.mean(times)
-    std = np.std(times)
-    max_val = np.max(times)
-    print(f"{label}: mean={mean:.4f}s, std={std:.4f}s, max={max_val:.4f}s")
-    
-    # 检测长尾
-    if max_val > mean * 2:
-        print(f"  ⚠️  WARNING: Long-tail detected! Max is {max_val/mean:.1f}x the mean")
+def pct(x, total):
+    return 100.0 * x / total if total > 0 else 0.0
+
+means = {k: statistics.mean(v) for k, v in by_phase.items() if v}
+step_mean = sum(means.values())
+
+for k in sorted(means, key=lambda n: means[n], reverse=True):
+    v = by_phase[k]
+    p95 = statistics.quantiles(v, n=20)[-1] if len(v) >= 20 else max(v)
+    print(f"{k:>4} mean={means[k]:.6f}s  p95={p95:.6f}s  share={pct(means[k], step_mean):5.1f}%")
 ```
 
-### 输出示例
+## Interpretation Cheatsheet
+- If `Data` dominates: input pipeline / dataloader is the primary bottleneck.
+- If `Fwd+Bwd+Opt` dominates but GPU utilization is low: batch sizing, mixed precision, or sync points likely.
+- If `p95` or `max` is much larger than mean: long-tail stalls (I/O jitter, CPU contention, random heavy samples).
 
-```
-DataLoader: mean=0.4821s, std=0.1523s, max=1.2341s
-  ⚠️  WARNING: Long-tail detected! Max is 2.6x the mean
-Forward: mean=0.1198s, std=0.0012s, max=0.1234s
-Backward: mean=0.2234s, std=0.0023s, max=0.2345s
-```
+## Training-Strategy Signals (Optional)
+These help when “samples/sec” is misleading for variable-size workloads.
+- Track “work per step”:
+  - tokens/frames/pixels per step (depending on modality)
+  - average padding ratio (if applicable)
+- If step time correlates with “work per step”, consider bucketing/sampler changes in Skill 03.
 
----
-
-## 诊断结论模板
-
-根据分析，填写以下结论：
-
+## Diagnostic Report (Template)
 ```
 [Diagnostic Report]
+Workload: <model/dataset/steps>
+Hardware: <CPU/GPU/Storage>
+Window: warmup=<WARMUP_STEPS>, measure=<MEASURE_STEPS>
 
-Time Distribution:
-- DataLoader: {X}% (mean={Y}s, std={Z}s)
-- Forward: {A}% (mean={B}s)
-- Backward: {C}% (mean={D}s)
+Step Time Breakdown (mean):
+- Data: <sec> (<%>)
+- H2D:  <sec> (<%>)
+- Fwd:  <sec> (<%>)
+- Bwd:  <sec> (<%>)
+- Opt:  <sec> (<%>)
 
-Bottleneck Identified:
-□ DataLoader is the primary bottleneck (>50% of total time)
-□ Long-tail detected in {phase} (max > 2x mean)
-□ Forward/Backward imbalance
-□ Other: _______________
+Tail Signals:
+- Long-tail phase: <phase or none>
+- Evidence: p95/mean=<x>, max/mean=<y>
 
-Recommendation:
-→ Proceed to Skill: 03-optimize.md with focus on {bottleneck_type}
+Primary Bottleneck:
+- <one sentence>
+
+Next Focus:
+- Proceed to Skill 03 — Optimize with focus on <data|compute|sync>
 ```
-
----
-
-## 常见瓶颈模式
-
-| 模式 | 特征 | 下一步 |
-|------|------|--------|
-| **IO 瓶颈** | DataLoader 时间 > 50% | 优化 `num_workers`, `prefetch_factor` |
-| **数据长尾** | DataLoader std 大，max >> mean | 检查数据分布，优化预处理 |
-| **GPU 利用率低** | Forward/Backward 时间异常短 | 检查 batch_size, 模型并行 |
-| **同步阻塞** | 某阶段时间方差极大 | 检查 CPU-GPU 同步点 |

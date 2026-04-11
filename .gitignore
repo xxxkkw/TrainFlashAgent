@@ -1,0 +1,31 @@
+.DS_Store
+Thumbs.db
+
+__pycache__/
+*.py[cod]
+*.so
+
+.venv/
+venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.idea/
+.vscode/
+.claude/
+
+# Large local datasets / models (not part of TrainFlashAgent docs)
+LabelHelper_label/
+Laryn/
+Laryn_FAST/
+NBI_Label/
+Qwen*/
+gemma-4-31B-it/
+swin/
+
+# Local experiments
+dir/
+bench.py
+test_gemma4_256k_context.py

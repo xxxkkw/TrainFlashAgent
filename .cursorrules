@@ -19,13 +19,15 @@
 
 ### 3. 应用优化 (Skill: 03-optimize.md)
 - 优先优化数据管道 (num_workers, prefetch_factor)
-- 其次调整资源分配 (batch_size, gradient_accumulation)
+- 其次做训练策略优化 (effective batch, sampler/bucketing, shape 稳定化, eval/ckpt cadence)
+- 再调整资源分配 (batch_size, gradient_accumulation)
 - 最后考虑代码模式优化
 - **算子级优化是最后手段**
 
 ### 4. 验证并回写 (Skill: 04-verify.md)
 - 测量吞吐量提升
 - 验证 Loss 曲线一致性 (误差 < 0.001)
+- 涉及训练策略变更时，补充短程收敛检查（同预算对比：optimizer steps / samples / wall-clock）
 - 生成报告等待用户确认
 - 批准后回写代码
 
