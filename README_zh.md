@@ -47,10 +47,36 @@ cp .github/copilot-instructions.md /path/to/your/project/.github/
 
 期望 AI 按顺序执行：Sandbox → Diagnose → Optimize → Verify →（可选）Write back。
 
+## 基于 MCP 的诊断助手
+TrainFlashAgent 现在内置了一个独立的诊断 MCP 包：`tools/trainflash_mcp`。
+
+它用于在重型 profiler 之前，先做低开销训练诊断，并可组合以下证据：
+- 基于 NVML 的 GPU 遥测：核心利用率、显存利用率、PCIe RX/TX 吞吐、功耗、温度
+- 基于 `psutil` 的可选主机遥测：CPU / 内存 / 磁盘 / 网络
+- `Data`、`H2D`、`Fwd`、`Bwd`、`Opt`、`Eval`、`Ckpt`、`Log` 等阶段事件
+- 聚合后的诊断摘要与瓶颈提示
+
+典型安装与启动方式：
+
+```bash
+cd tools/trainflash_mcp
+pip install -e .[mcp,host,test]
+python -m trainflash_mcp
+```
+
+该 MCP server 暴露的工具包括：
+- `get_trainflash_capabilities`
+- `get_trainflash_system_snapshot`
+- `start_trainflash_session`
+- `record_trainflash_phase_event`
+- `ingest_trainflash_phase_trace`
+- `get_trainflash_summary`
+- `stop_trainflash_session`
+
 ## Skills（核心工作流）
 `/skills` 目录下的 skills 以英文编写，强调“契约 / 护栏 / 步骤 / 验收 / 报告模板”，便于 AI 稳定执行：
 - [01-sandbox.md](skills/01-sandbox.md)：在任何修改前创建隔离沙盒
-- [02-diagnose.md](skills/02-diagnose.md)：用手动计时做宏观诊断，定位主要瓶颈
+- [02-diagnose.md](skills/02-diagnose.md)：用低开销计时或 MCP 驱动的阶段诊断定位主要瓶颈
 - [03-optimize.md](skills/03-optimize.md)：基于证据做工程与训练策略优化（effective batch、sampler/bucketing、训练环路开销等）
 - [04-verify.md](skills/04-verify.md)：验证性能与保真；涉及训练策略变更时补充收敛感知检查；通过后再安全回写
 
@@ -76,6 +102,8 @@ TrainFlashAgent/
 │   ├── 02-diagnose.md
 │   ├── 03-optimize.md
 │   └── 04-verify.md
+├── tools/
+│   └── trainflash_mcp/         # 独立 MCP 诊断工具（遥测 + 阶段计时）
 ├── .cursorrules                     # Cursor 配置
 ├── .github/copilot-instructions.md  # Copilot 配置
 ├── README.md                        # English

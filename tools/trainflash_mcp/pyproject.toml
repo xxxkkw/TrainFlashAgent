@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trainflash-mcp"
+version = "0.2.0"
+description = "Lightweight TrainFlash MCP with phase timing and hardware telemetry"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pynvml",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp"]
+host = ["psutil"]
+test = ["pytest", "anyio"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[project.scripts]
+trainflash-mcp = "trainflash_mcp:run_trainflash_stdio"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

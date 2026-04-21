@@ -7,6 +7,7 @@
 ## Contract
 **Inputs**
 - A completed Diagnostic Report from Skill 02.
+- Preferably the latest TrainFlash MCP outputs as well: `get_trainflash_summary`, `get_trainflash_system_snapshot`, and `get_trainflash_capabilities`.
 - Constraints: maximum acceptable quality drift, allowed code change scope, and whether new dependencies are allowed.
 
 **Outputs**
@@ -30,6 +31,7 @@
 5. Kernel-level / profiler-driven micro-optimizations
 
 ## Decision Map (Start Here)
+- If TrainFlash MCP says only `telemetry_only` is available, stay focused on macro bottlenecks and do not assume precise memcpy/kernel timelines exist.
 - If `Data` is the largest share or shows long-tail: focus on **Input pipeline**.
 - If compute dominates but GPU utilization is low: focus on **Batching / overlap / stalls**.
 - If timings show large variance or unexpected stalls: focus on **Sync removal**.

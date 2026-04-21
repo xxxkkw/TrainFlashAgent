@@ -12,10 +12,15 @@
 - 记录沙盒路径
 
 ### 2. 诊断瓶颈 (Skill: 02-diagnose.md)
-- **先使用手动计时器**，不要直接调用 Profiler
-- 在 DataLoader、Forward、Backward 位置插入 `time.perf_counter()`
-- 运行至少 50-100 steps 收集日志
-- 分析时间分布和长尾问题
+- 默认优先使用 `tools/trainflash_mcp`，先启动 MCP 并调用 `get_trainflash_capabilities`
+- 若 MCP 可用，优先调用：
+  - `start_trainflash_session`
+  - `record_trainflash_phase_event` / `ingest_trainflash_phase_trace`
+  - `get_trainflash_system_snapshot`
+  - `get_trainflash_summary`
+  - `stop_trainflash_session`
+- 只有在目标环境无法安装/接入 MCP 时，才回退到手动计时器
+- 不要一开始就直接使用重型 Profiler
 
 ### 3. 应用优化 (Skill: 03-optimize.md)
 - 优先优化数据管道 (num_workers, prefetch_factor)
@@ -36,7 +41,7 @@
 ## 关键规则
 
 1. **不要跳过诊断步骤** - 盲目优化可能导致性能下降
-2. **不要直接使用 Profiler** - 先用手动计时器定位宏观瓶颈
+2. **不要直接使用 Profiler** - 先用 TrainFlash MCP 做低开销诊断；若 MCP 不可用，再用手动计时器
 3. **每次只做一个优化** - 便于归因分析
 4. **必须验证保真度** - 确保模型精度不受影响
 5. **等待用户确认** - 不要自动回写代码
@@ -49,9 +54,18 @@
 # 创建沙盒
 rsync -av --exclude '__pycache__' --exclude '.git' /path/to/project/ /tmp/sandbox/
 
-# 运行诊断
+# 启动 TrainFlash MCP
+cd tools/trainflash_mcp && pip install -e .[mcp,host,test] && python -m trainflash_mcp
+
+# 运行训练侧测量窗口
 python train.py --steps 100 2>&1 | tee timer_logs.txt
 
-# 提取吞吐量
-grep "TRAINOPT_THROUGHPUT" logs.txt | awk '{sum+=$3} END {print sum/NR}'
+# 提取手动计时器输出（回退路径）
+python - <<'PY'
+import re
+from statistics import mean
+text = open("timer_logs.txt", "r", encoding="utf-8", errors="ignore").read()
+vals = [float(x) for x in re.findall(r"^\[TFA_TIMER\]\s+\w+\s+([0-9.]+)", text, re.M)]
+print(mean(vals) if vals else "no TFA timer samples")
+PY
 ```

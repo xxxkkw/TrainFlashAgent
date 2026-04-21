@@ -9,8 +9,11 @@
 - Not in scope: kernel-level tuning as the first step.
 
 ## Principle
-- MUST start with manual timing (step-level phases).
-- MAY use a profiler only after engineering-level optimizations plateau.
+- MUST start with low-overhead phase evidence collection.
+- Preferred path: use the standalone `tools/trainflash_mcp` MCP package to collect session telemetry + phase events.
+- When MCP is available, MUST treat TrainFlash MCP as the default execution path rather than an optional add-on.
+- Fallback path: if MCP cannot be installed in the target environment, use manual timing with the same phase contract.
+- MAY use a heavy profiler only after engineering-level optimizations plateau.
 
 ## Contract
 **Inputs**
@@ -26,9 +29,42 @@
 ## Guardrails (MUST)
 - MUST keep instrumentation easy to remove (single helper + tag prefix).
 - MUST include warmup steps and then measure on a fixed window.
+- MUST derive diagnosis from real runtime evidence plus actual project phase boundaries, not from ad hoc keyword matching.
 - If measuring GPU work, MUST avoid misleading async timing:
   - Option A (recommended): synchronize before stopping a timer.
   - Option B: time CPU-side only and label it as such.
+
+## Preferred workflow — MCP-driven diagnosis
+Use the standalone package at `tools/trainflash_mcp` when available.
+
+Default behavior for AI agents:
+1. Check or start the TrainFlash MCP server.
+2. Call `get_trainflash_capabilities` first to determine available telemetry/profiler evidence.
+3. Call `get_trainflash_system_snapshot` before the measured run to capture the machine baseline.
+4. Open a measured window with `start_trainflash_session`.
+5. Feed phase evidence through `record_trainflash_phase_event` or `ingest_trainflash_phase_trace`.
+6. Read interim or final output with `get_trainflash_summary`, then close with `stop_trainflash_session`.
+
+What the MCP package provides:
+- background sampling of GPU telemetry via NVML
+- optional host telemetry via psutil
+- phase event ingestion for `Data`, `H2D`, `Fwd`, `Bwd`, `Opt`, `Eval`, `Ckpt`, `Log`
+- aggregated summaries with mean / p50 / p95 / max / share
+- bottleneck hints that combine phase timing and hardware signals
+
+Recommended sequence:
+1. Start one TrainFlash session for the measured window.
+2. Record `start` / `end` events for each phase per step, or emit/import a JSONL phase trace.
+3. Stop the session and use the returned summary/report as the primary diagnosis artifact.
+
+Relevant MCP tools:
+- `get_trainflash_capabilities`
+- `get_trainflash_system_snapshot`
+- `start_trainflash_session`
+- `record_trainflash_phase_event`
+- `ingest_trainflash_phase_trace`
+- `get_trainflash_summary`
+- `stop_trainflash_session`
 
 ## Procedure
 ### Step 1 — Define phases to time
@@ -44,7 +80,19 @@ If your training loop includes significant “outside-step” work, also time:
 - `Ckpt`: checkpoint saving
 - `Log`: heavy logging / visualization
 
-### Step 2 — Add a minimal timer utility
+### Step 2 — Add lightweight phase instrumentation
+Preferred: wire the training loop to emit MCP-compatible phase events.
+
+Minimal JSONL event format:
+```json
+{"step": 12, "phase": "Data", "event": "start", "ts": 1710000000.1}
+{"step": 12, "phase": "Data", "event": "end", "ts": 1710000000.13}
+{"step": 12, "phase": "H2D", "event": "start", "ts": 1710000000.13}
+{"step": 12, "phase": "H2D", "event": "end", "ts": 1710000000.15}
+```
+
+Fallback: add a minimal manual timer utility.
+
 Python (stdlib-only):
 ```python
 import time
@@ -117,9 +165,13 @@ for step_idx, batch in enumerate(dataloader):
 ### Step 4 — Run a controlled measurement
 - Warm up `WARMUP_STEPS` (e.g., 10–20).
 - Measure `MEASURE_STEPS` (e.g., 50–200).
-- Save logs to a file.
+- If using MCP, keep one TrainFlash session open across the measured window.
+- Save logs or exported phase traces to a file when needed.
 
-### Step 5 — Summarize (stdlib-only)
+### Step 5 — Summarize
+Preferred: use the MCP summary/report output directly, and include the pre/post `get_trainflash_system_snapshot` evidence when explaining bottlenecks.
+
+If MCP is unavailable, summarize with stdlib only:
 ```python
 import re
 import statistics
@@ -146,6 +198,7 @@ for k in sorted(means, key=lambda n: means[n], reverse=True):
 
 ## Interpretation Cheatsheet
 - If `Data` dominates: input pipeline / dataloader is the primary bottleneck.
+- If `H2D` dominates and PCIe throughput is elevated: host-to-device transfer / overlap is the primary bottleneck.
 - If `Fwd+Bwd+Opt` dominates but GPU utilization is low: batch sizing, mixed precision, or sync points likely.
 - If `p95` or `max` is much larger than mean: long-tail stalls (I/O jitter, CPU contention, random heavy samples).
 

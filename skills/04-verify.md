@@ -8,6 +8,7 @@
 **Inputs**
 - Baseline run artifacts: logs/metrics for the target workload.
 - Optimized run artifacts: logs/metrics collected under the same conditions.
+- When TrainFlash MCP is available, include baseline/optimized `get_trainflash_summary` outputs and relevant `get_trainflash_system_snapshot` evidence.
 - A defined tolerance for quality drift (default: mean loss delta < 1e-3, unless the project defines a better metric).
 
 **Outputs**
@@ -36,6 +37,8 @@
 Choose a primary metric and keep it consistent:
 - Throughput: `samples/sec`
 - Or step time: `sec/step`
+
+When TrainFlash MCP is available, compare the phase-share and telemetry deltas between the baseline and optimized runs, not only the top-line throughput.
 
 Minimum output:
 - Baseline: mean + p95 (or max) over the measurement window

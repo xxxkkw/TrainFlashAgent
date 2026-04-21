@@ -45,9 +45,35 @@ cp .github/copilot-instructions.md /path/to/your/project/.github/
 
 Expected flow: sandbox → diagnose → optimize → verify → (optional) write back.
 
+## MCP-based diagnosis helper
+TrainFlashAgent now includes a standalone TrainFlash MCP package at `tools/trainflash_mcp`.
+
+It is intended for low-overhead training diagnosis before any heavy profiler run, and can combine:
+- GPU telemetry from NVML (`gpu_util`, memory utilization, PCIe RX/TX throughput, power, temperature)
+- optional host telemetry from `psutil` (CPU / memory / disk / network)
+- phase timing events for `Data`, `H2D`, `Fwd`, `Bwd`, `Opt`, `Eval`, `Ckpt`, `Log`
+- aggregated diagnosis summaries and bottleneck hints
+
+Typical setup:
+
+```bash
+cd tools/trainflash_mcp
+pip install -e .[mcp,host,test]
+python -m trainflash_mcp
+```
+
+The MCP server exposes:
+- `get_trainflash_capabilities`
+- `get_trainflash_system_snapshot`
+- `start_trainflash_session`
+- `record_trainflash_phase_event`
+- `ingest_trainflash_phase_trace`
+- `get_trainflash_summary`
+- `stop_trainflash_session`
+
 ## The Skills
 - [01-sandbox.md](skills/01-sandbox.md): isolate a sandbox workspace before any edits
-- [02-diagnose.md](skills/02-diagnose.md): identify the dominant bottleneck with low-overhead timing
+- [02-diagnose.md](skills/02-diagnose.md): identify the dominant bottleneck with low-overhead timing or MCP-driven phase diagnosis
 - [03-optimize.md](skills/03-optimize.md): apply engineering + training-strategy optimizations (effective batch, sampler/bucketing, loop overheads)
 - [04-verify.md](skills/04-verify.md): verify performance + fidelity (and convergence sanity when needed), then write back safely
 
@@ -73,6 +99,8 @@ TrainFlashAgent/
 │   ├── 02-diagnose.md
 │   ├── 03-optimize.md
 │   └── 04-verify.md
+├── tools/
+│   └── trainflash_mcp/         # Standalone MCP helper for telemetry + phase timing
 ├── .cursorrules                     # Cursor instructions
 ├── .github/copilot-instructions.md  # Copilot instructions
 ├── README.md                        # English (this file)

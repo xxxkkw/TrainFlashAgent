@@ -14,20 +14,37 @@ Always work in an isolated sandbox first:
 rsync -av /path/to/project/ /tmp/trainflash_sandbox/
 ```
 
-### Phase 2: Macro Diagnostics (NOT Profiler)
-Insert manual timers at key boundaries:
+### Phase 2: Macro Diagnostics With TrainFlash MCP (NOT Profiler)
+Prefer `tools/trainflash_mcp` first:
+```bash
+cd tools/trainflash_mcp
+pip install -e .[mcp,host,test]
+python -m trainflash_mcp
+```
+
+Default MCP call sequence:
+- `get_trainflash_capabilities`
+- `start_trainflash_session`
+- `record_trainflash_phase_event` or `ingest_trainflash_phase_trace`
+- `get_trainflash_system_snapshot`
+- `get_trainflash_summary`
+- `stop_trainflash_session`
+
+Only fall back to manual timers when MCP cannot be installed or connected.
+
+Fallback manual timers at key boundaries:
 ```python
 import time
 
 # At DataLoader boundary
 start = time.perf_counter()
 batch = next(iter(dataloader))
-print(f"[TRAINOPT_TIMER] DataLoader: {time.perf_counter() - start:.4f}s")
+print(f"[TFA_TIMER] DataLoader {time.perf_counter() - start:.6f}")
 
-# At Forward boundary  
+# At Forward boundary
 start = time.perf_counter()
 output = model(batch)
-print(f"[TRAINOPT_TIMER] Forward: {time.perf_counter() - start:.4f}s")
+print(f"[TFA_TIMER] Fwd {time.perf_counter() - start:.6f}")
 ```
 
 Run 50-100 steps and analyze:
@@ -62,7 +79,7 @@ DataLoader(dataset,
 
 ## Key Principles
 
-1. **Top-Down**: Manual timers FIRST, Profiler LAST
+1. **Top-Down**: TrainFlash MCP FIRST, fallback manual timers SECOND, Profiler LAST
 2. **Sandbox First**: Never modify original code directly
 3. **Verify Fidelity**: Ensure model accuracy is preserved
 4. **User Approval**: Always report before merging changes
