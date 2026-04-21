@@ -7,6 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Cursor](https://img.shields.io/badge/Cursor-支持-brightgreen)](https://cursor.sh)
 [![Copilot](https://img.shields.io/badge/Copilot-支持-blue)](https://github.com/features/copilot)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-支持-purple)](https://claude.ai/code)
 
 </div>
 
@@ -39,6 +40,9 @@ cp .cursorrules /path/to/your/project/
 # GitHub Copilot 用户
 mkdir -p /path/to/your/project/.github
 cp .github/copilot-instructions.md /path/to/your/project/.github/
+
+# Claude Code 用户
+cp CLAUDE.md /path/to/your/project/
 ```
 
 2) 对 AI 说：

@@ -7,6 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Cursor](https://img.shields.io/badge/Cursor-Supported-brightgreen)](https://cursor.sh)
 [![Copilot](https://img.shields.io/badge/Copilot-Supported-blue)](https://github.com/features/copilot)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-purple)](https://claude.ai/code)
 
 </div>
 
@@ -37,6 +38,9 @@ cp .cursorrules /path/to/your/project/
 # GitHub Copilot users
 mkdir -p /path/to/your/project/.github
 cp .github/copilot-instructions.md /path/to/your/project/.github/
+
+# Claude Code users
+cp CLAUDE.md /path/to/your/project/
 ```
 
 2) Ask your AI assistant to follow the skills:
