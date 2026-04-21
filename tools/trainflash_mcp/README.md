@@ -63,6 +63,45 @@ Emit JSONL events such as:
 
 Then import it into the running TrainFlash session with `ingest_trainflash_phase_trace`.
 
+## Hermes / host integration
+
+Hermes config example:
+
+```yaml
+mcp_servers:
+  trainflash:
+    command: "python"
+    args: ["-m", "trainflash_mcp"]
+    cwd: "/absolute/path/to/TrainFlashAgent/tools/trainflash_mcp"
+    timeout: 180
+    connect_timeout: 60
+```
+
+If `trainflash-mcp` is already on PATH, you can also use:
+
+```yaml
+mcp_servers:
+  trainflash:
+    command: "trainflash-mcp"
+    args: []
+    timeout: 180
+    connect_timeout: 60
+```
+
+Generic stdio host pattern:
+- working directory: `tools/trainflash_mcp`
+- command: `python -m trainflash_mcp` or `trainflash-mcp`
+- transport: stdio
+
+Once attached, the host should discover these tool names directly:
+- `get_trainflash_capabilities`
+- `get_trainflash_system_snapshot`
+- `start_trainflash_session`
+- `record_trainflash_phase_event`
+- `ingest_trainflash_phase_trace`
+- `get_trainflash_summary`
+- `stop_trainflash_session`
+
 ## Python usage
 
 ```python

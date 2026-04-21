@@ -62,6 +62,18 @@ pip install -e .[mcp,host,test]
 python -m trainflash_mcp
 ```
 
+Hermes host config example:
+
+```yaml
+mcp_servers:
+  trainflash:
+    command: "python"
+    args: ["-m", "trainflash_mcp"]
+    cwd: "/absolute/path/to/TrainFlashAgent/tools/trainflash_mcp"
+    timeout: 180
+    connect_timeout: 60
+```
+
 The MCP server exposes:
 - `get_trainflash_capabilities`
 - `get_trainflash_system_snapshot`

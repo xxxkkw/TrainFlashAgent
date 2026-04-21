@@ -64,6 +64,18 @@ pip install -e .[mcp,host,test]
 python -m trainflash_mcp
 ```
 
+Hermes 宿主接入示例：
+
+```yaml
+mcp_servers:
+  trainflash:
+    command: "python"
+    args: ["-m", "trainflash_mcp"]
+    cwd: "/absolute/path/to/TrainFlashAgent/tools/trainflash_mcp"
+    timeout: 180
+    connect_timeout: 60
+```
+
 该 MCP server 暴露的工具包括：
 - `get_trainflash_capabilities`
 - `get_trainflash_system_snapshot`
